@@ -17,8 +17,8 @@ import {
   asSignerWalletAdapter,
   signAndSendBase64Transaction,
 } from "@/lib/solana/send-transaction";
+import { InfoTip } from "@/components/InfoTip";
 import { DutchSimulation } from "@/components/DutchSimulation";
-import { FlowTrackAside } from "@/components/SubmissionContext";
 
 function shortAddr(a: string) {
   return `${a.slice(0, 4)}…${a.slice(-4)}`;
@@ -165,43 +165,49 @@ export default function DutchPage() {
 
   return (
     <div className="space-y-8">
-      <div className="grid gap-8 lg:grid-cols-[1fr,minmax(260px,360px)] lg:items-start">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            Private Dutch sale
-          </h1>
-          <p className="mt-3 max-w-2xl text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
-            The current ask is visible and ticks down on a schedule. When a buyer
-            accepts, they pay the seller at that clearing price using MagicBlock&apos;s{" "}
-            <strong className="font-medium text-zinc-800 dark:text-zinc-200">
-              private transfer
-            </strong>
-            —same endpoint family as sealed-bid, different pricing rule.
-          </p>
-        </div>
-        <FlowTrackAside flow="dutch" />
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">
+          Private Dutch sale
+        </h1>
+        <p className="mt-3 max-w-2xl text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
+          The current ask is visible and ticks down on a schedule. When a buyer
+          accepts, they pay the seller at that clearing price using MagicBlock&apos;s{" "}
+          <strong className="font-medium text-zinc-800 dark:text-zinc-200">
+            private transfer
+          </strong>
+          —same endpoint family as sealed-bid, different pricing rule.
+        </p>
       </div>
 
       <section className="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
-          MagicBlock — devnet
-        </h2>
+        <div className="flex items-center gap-1">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
+            MagicBlock — devnet
+          </h2>
+          <InfoTip text="Deposit is the same as sealed-bid: user funds the Ephemeral Rollup (ER) USDC balance via the payments API, then a private buy spends from that balance. Capture both in your recording." />
+        </div>
         <p className="mt-2 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
           Deposit devnet USDC into the rollup so the buyer can settle privately
           at the live price. Show this plus the transfer in your demo recording.
         </p>
-        <button
-          type="button"
-          onClick={onDeposit}
-          disabled={busy || !publicKey}
-          className="mt-4 rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-500 disabled:opacity-50"
-        >
-          Deposit 0.5 USDC (rollup)
-        </button>
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={onDeposit}
+            disabled={busy || !publicKey}
+            className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-500 disabled:opacity-50"
+          >
+            Deposit 0.5 USDC (rollup)
+          </button>
+          <InfoTip text="Builds a deposit from the API; the wallet must hold devnet SOL and USDC. Confirms on devnet after signing." />
+        </div>
       </section>
 
       <section className="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
-        <h2 className="font-semibold">Configure sale</h2>
+        <div className="flex items-center gap-1">
+          <h2 className="font-semibold">Configure sale</h2>
+          <InfoTip text="The descending schedule is local to this browser for a fast loop. A frontier follow-on could run price ticks or reserve logic on Solana (ER/PER) while still settling with the Private Payments API at the clearing price." />
+        </div>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <label className="text-sm text-zinc-600 dark:text-zinc-400">
             Title
@@ -246,14 +252,17 @@ export default function DutchPage() {
             />
           </label>
         </div>
-        <button
-          type="button"
-          onClick={onCreate}
-          disabled={busy || !publicKey}
-          className="mt-4 rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium hover:bg-zinc-50 dark:border-zinc-600 dark:hover:bg-zinc-800"
-        >
-          Start / replace session (seller = connected wallet)
-        </button>
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={onCreate}
+            disabled={busy || !publicKey}
+            className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium hover:bg-zinc-50 dark:border-zinc-600 dark:hover:bg-zinc-800"
+          >
+            Start / replace session (seller = connected wallet)
+          </button>
+          <InfoTip text="Replaces the single in-browser Dutch session. Seller is the connected wallet; buyers need only buy at the right tick and have rollup balance to pay." />
+        </div>
       </section>
 
       {session && (
@@ -267,7 +276,12 @@ export default function DutchPage() {
             </div>
             {session.phase === "running" && (
               <div className="text-right">
-                <p className="text-xs uppercase text-zinc-500">Current price</p>
+                <p className="text-xs uppercase text-zinc-500">
+                  <span className="inline-flex items-center justify-end gap-1">
+                    Current price
+                    <InfoTip text="Ticks down from the start by the configured step each interval, stopping at the floor. This is the amount a buyer pays the seller in the private buy step." />
+                  </span>
+                </p>
                 <p className="text-3xl font-semibold tabular-nums">
                   {formatBaseUnitsAsUsdc(session.currentPriceBaseUnits)}{" "}
                   <span className="text-base font-normal text-zinc-500">USDC</span>
@@ -277,14 +291,17 @@ export default function DutchPage() {
           </div>
 
           {session.phase === "running" && (
-            <button
-              type="button"
-              onClick={onBuy}
-              disabled={busy || !publicKey}
-              className="mt-6 w-full rounded-xl bg-emerald-600 py-3 text-sm font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
-            >
-              Buy now (private pay seller)
-            </button>
+            <div className="mt-6 flex min-h-[3rem] items-center gap-2">
+              <button
+                type="button"
+                onClick={onBuy}
+                disabled={busy || !publicKey}
+                className="min-w-0 flex-1 rounded-xl bg-emerald-600 py-3 text-sm font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
+              >
+                Buy now (private pay seller)
+              </button>
+              <InfoTip text="Pays the seller the current tick price in one private transfer (same buildPrivateTransfer path as sealed-bid). Deposit to the rollup first so the spend succeeds." />
+            </div>
           )}
 
           {session.phase === "sold" && (

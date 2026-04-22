@@ -1,74 +1,94 @@
-# Privacy Auctions (MagicBlock)
+# Privacy Auctions
 
-Next.js app with two flows for the **Colosseum Privacy Track**:
+**Private settlement for Solana auctions using [MagicBlock](https://magicblock.app/) Private Payments.**  
+A devnet web app for the **Colosseum Privacy Track** — two auction mechanics, one real integration: **deposit to rollup** and **pay the seller** through MagicBlock’s hosted API with `privacy: "private"` so settlement does not look like a normal public SPL transfer on the base layer.
 
-- **Sealed-bid** — SHA-256 commitments in the browser, reveal phase, then **private USDC transfer** to the seller via [MagicBlock Private Payments API](https://payments.magicblock.app/reference).
-- **Private Dutch** — descending price on a timer; buyer pays the seller with the same **private transfer** path.
+---
 
-Auction state is stored in `localStorage` for the demo (commitments are not on-chain yet). **Deposits and private transfers** call the hosted API at `https://payments.magicblock.app` on **Solana devnet**.
+## What this is about
 
-## Prerequisites
+**Problem.** Open auctions and plain on-chain token transfers expose a lot: max bids, timing, and payment graphs. For many real use cases (procurement, liquidations, OTC-style sales) you want **price discovery** or **fair rules** *without* broadcasting every strategic detail or who paid whom on a public ledger graph.
 
-- Node 20+
-- Phantom (or another supported wallet) on **Devnet**
-- Devnet SOL + devnet USDC for your wallet (fund via a faucet / devnet USDC sources)
+**What we built.** A **Next.js** demo that pairs **auction logic in the app** (commit–reveal for sealed bids; timed ticks for a Dutch sale) with **MagicBlock [Private Payments API](https://payments.magicblock.app/reference)** for the *money* leg: you fund a rollup balance on devnet, then the winner or buyer **settles to the seller via a private SPL path** the API builds — the same integration surface you would show in a live hackathon video.
 
-## Setup
+**What this is not (yet).** Bids are not fully enforced on-chain in this repo: commitments and session state live in the **browser** (`localStorage`) so the story stays easy to follow. The **MagicBlock** part is the **real** integration: `POST /v1/spl/deposit` and `POST /v1/spl/transfer` with `privacy: "private"` on **Solana devnet**.
+
+**Who should use this repo.** Hackathon judges, integrators who want a **working UI + clear flow** for Private Payments, or teams turning this into **programs (e.g. Anchor) + on-chain commitments** next.
+
+---
+
+## Modes
+
+| Mode | Idea | Settlement |
+|------|------|------------|
+| **Sealed-bid** | Bidders only post **SHA-256 commitments** during the window; after close they **reveal**; highest valid bid wins. | Winner pays the seller with a **private transfer** built by MagicBlock. |
+| **Private Dutch** | **Price steps down** on a timer; first buyer to take the lot pays the **current price** to the seller. | Same **private transfer** path as sealed-bid. |
+
+Each route includes a **read-only guided sequence** (no wallet) to explain API steps for recordings.
+
+---
+
+## Stack
+
+- **Framework:** Next.js (App Router), TypeScript, Tailwind CSS  
+- **Chain:** Solana **devnet** (Phantom or compatible wallet)  
+- **Integration:** MagicBlock `payments.magicblock.app` — deposit, private transfer; optional env override via `NEXT_PUBLIC_MAGICBLOCK_PAYMENTS_URL` (see `.env.example`)  
+- **USDC (devnet):** mint `4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU` (see `lib/constants.ts`)
+
+---
+
+## Quick start
+
+**Prerequisites:** Node 20+, a Solana wallet on **devnet**, **devnet SOL** and **devnet USDC** (faucet / test sources) before using rollup deposit.
 
 ```bash
-cd privacy-auctions
+git clone https://github.com/panagot/Privacy-Auctions.git
+cd Privacy-Auctions
 npm install --ignore-scripts
 ```
 
-If `npm install` fails on Windows with a postinstall script error, `--ignore-scripts` avoids optional native setup issues; the app does not rely on those scripts.
+> On Windows, if `npm install` fails on a postinstall script, `--ignore-scripts` is safe for this app.
 
-Optional env:
-
-```bash
-copy .env.example .env.local
-```
-
-`NEXT_PUBLIC_MAGICBLOCK_PAYMENTS_URL` overrides the default MagicBlock base URL (see `.env.example`).
-
-## Develop
+Optional: copy `.env.example` to `.env.local` and set variables as needed.
 
 ```bash
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). Set Phantom to **devnet**.
+Open [http://localhost:3000](http://localhost:3000) and set your wallet to **devnet**.  
+Scripts use `next dev --webpack` / `next build --webpack` for the `buffer` polyfill (`next.config.ts`).
 
-## Verify auction logic (no wallet)
-
-Runs the same sealed-bid and Dutch **store** code paths the UI uses (with a browser shim):
-
-```bash
-npm run verify:flows
-```
-
-Use this after changes to `lib/sealed-auction-store.ts` or `lib/dutch-auction-store.ts`.
-
-## Build
+**Production build:**
 
 ```bash
 npm run build
 npm start
 ```
 
-Uses `next dev --webpack` / `next build --webpack` so the `buffer` polyfill in `next.config.ts` applies.
+**Check auction state logic (no browser wallet):** runs the same `localStorage` stores in Node with a small shim.
+
+```bash
+npm run verify:flows
+```
+
+---
 
 ## Project layout
 
-| Area | Role |
+| Path | Role |
 |------|------|
-| `app/` | Routes, layouts, metadata |
-| `lib/magicblock/` | Deposit / transfer HTTP clients (30s timeout) |
-| `lib/*-auction-store.ts` | Browser `localStorage` state |
-| `lib/commitment.ts` | SHA-256 commitments for sealed bids |
-| `components/` | Shell, wallet providers, guided demos |
+| `app/` | Pages, layouts, metadata |
+| `lib/magicblock/` | HTTP client for deposit / transfer (timeouts, error handling) |
+| `lib/sealed-auction-store.ts`, `lib/dutch-auction-store.ts` | Demo auction state in the browser |
+| `lib/commitment.ts` | SHA-256 sealed-bid commitments |
+| `lib/solana/` | Sign and send base64 transactions from the wallet |
+| `components/` | App shell, wallet providers, guided walkthroughs |
 
-## Hackathon notes
+---
 
-- **Technology:** MagicBlock `POST /v1/spl/deposit`, `POST /v1/spl/transfer` with `privacy: "private"`, devnet USDC mint `4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU`.
-- **Demo:** Deposit rollup balance → run an auction → settle with private pay (record both in your video).
-- **Future:** Anchor program for on-chain commitments + PER delegation as you harden the prototype.
+## Resources
+
+- [MagicBlock Payments API reference](https://payments.magicblock.app/reference)  
+- [Privacy Auctions (this repo on GitHub)](https://github.com/panagot/Privacy-Auctions)
+
+---

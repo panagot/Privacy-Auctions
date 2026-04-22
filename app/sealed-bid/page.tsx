@@ -19,8 +19,8 @@ import {
   asSignerWalletAdapter,
   signAndSendBase64Transaction,
 } from "@/lib/solana/send-transaction";
+import { InfoTip } from "@/components/InfoTip";
 import { SealedBidSimulation } from "@/components/SealedBidSimulation";
-import { FlowTrackAside } from "@/components/SubmissionContext";
 
 function shortAddr(a: string) {
   return `${a.slice(0, 4)}…${a.slice(-4)}`;
@@ -213,48 +213,54 @@ export default function SealedBidPage() {
 
   return (
     <div className="space-y-8">
-      <div className="grid gap-8 lg:grid-cols-[1fr,minmax(260px,360px)] lg:items-start">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Sealed-bid auction</h1>
-          <p className="mt-3 max-w-2xl text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
-            During bidding, each participant stores a{" "}
-            <strong className="font-medium text-zinc-800 dark:text-zinc-200">
-              commitment
-            </strong>{" "}
-            (hash of auction id, wallet, amount, and salt)—not the amount itself.
-            When bidding ends, bidders reveal; the app checks hashes and picks a
-            winner. Only then does the winner call MagicBlock to{" "}
-            <strong className="font-medium text-zinc-800 dark:text-zinc-200">
-              pay the seller privately
-            </strong>{" "}
-            on devnet.
-          </p>
-        </div>
-        <FlowTrackAside flow="sealed" />
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">Sealed-bid auction</h1>
+        <p className="mt-3 max-w-2xl text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
+          During bidding, each participant stores a{" "}
+          <strong className="font-medium text-zinc-800 dark:text-zinc-200">
+            commitment
+          </strong>{" "}
+          (hash of auction id, wallet, amount, and salt)—not the amount itself.
+          When bidding ends, bidders reveal; the app checks hashes and picks a
+          winner. Only then does the winner call MagicBlock to{" "}
+          <strong className="font-medium text-zinc-800 dark:text-zinc-200">
+            pay the seller privately
+          </strong>{" "}
+          on devnet.
+        </p>
       </div>
 
       <section className="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
-          MagicBlock — devnet
-        </h2>
+        <div className="flex items-center gap-1">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
+            MagicBlock — devnet
+          </h2>
+          <InfoTip text="On-chain you use MagicBlock’s payments API: deposit devnet USDC into your Ephemeral Rollup (ER) balance, then spend from that balance with a private transfer. Ideal demo footage: deposit, then a private pay after the auction is resolved." />
+        </div>
         <p className="mt-2 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
           Deposit devnet USDC into the rollup balance, then use a private SPL
           transfer to the seller after the auction is settled. Both actions go
           through the same payments API your video should show end-to-end.
         </p>
-        <button
-          type="button"
-          onClick={onDeposit}
-          disabled={busy || !publicKey}
-          className="mt-4 rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-500 disabled:opacity-50"
-        >
-          Deposit 0.5 USDC (rollup)
-        </button>
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={onDeposit}
+            disabled={busy || !publicKey}
+            className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-500 disabled:opacity-50"
+          >
+            Deposit 0.5 USDC (rollup)
+          </button>
+          <InfoTip text="Builds a deposit transaction from the API; your wallet signs and devnet confirms. Ensure the wallet has devnet SOL and USDC for fees and the transfer." />
+        </div>
       </section>
 
       <section className="grid gap-6 lg:grid-cols-2">
         <div className="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
-          <h2 className="font-semibold">Create auction</h2>
+          <div className="flex items-center gap-1">
+            <h2 className="font-semibold">Create auction</h2>
+            <InfoTip text="In this demo, the seller defines title and a bidding window. Auction data lives in the browser; a full track submission could anchor rules or commitments on Solana (e.g. with a Private Ephemeral Rollup) while still using the Private Payments API to settle." />
+          </div>
           <label className="mt-4 block text-sm text-zinc-600 dark:text-zinc-400">
             Title
             <input
@@ -284,7 +290,10 @@ export default function SealedBidPage() {
         </div>
 
         <div className="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
-          <h2 className="font-semibold">Place sealed bid</h2>
+          <div className="flex items-center gap-1">
+            <h2 className="font-semibold">Place sealed bid</h2>
+            <InfoTip text="Bidders submit a commitment: a hash of auction id, your wallet, amount, and a random salt. Bidding amounts are not on a public graph until the reveal step." />
+          </div>
           <label className="mt-4 block text-sm text-zinc-600 dark:text-zinc-400">
             Auction
             <select
@@ -312,14 +321,17 @@ export default function SealedBidPage() {
               onChange={(e) => setBidAmount(e.target.value)}
             />
           </label>
-          <button
-            type="button"
-            onClick={onBid}
-            disabled={busy || !publicKey || !selected}
-            className="mt-4 w-full rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
-          >
-            Seal bid (local commitment)
-          </button>
+          <div className="mt-4 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onBid}
+              disabled={busy || !publicKey || !selected}
+              className="min-w-0 flex-1 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
+            >
+              Seal bid (local commitment)
+            </button>
+            <InfoTip text="Only the commitment is stored in this session; keep your bid amount to reveal later. Same salt is derived inside the app when you commit." />
+          </div>
         </div>
       </section>
 
@@ -335,22 +347,28 @@ export default function SealedBidPage() {
             </div>
             {selected.phase === "bidding" &&
               clock >= selected.endTimeMs && (
-              <button
-                type="button"
-                onClick={onOpenReveal}
-                className="rounded-lg bg-amber-600 px-3 py-2 text-sm font-medium text-white hover:bg-amber-500"
-              >
-                Close bidding → reveal
-              </button>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={onOpenReveal}
+                  className="rounded-lg bg-amber-600 px-3 py-2 text-sm font-medium text-white hover:bg-amber-500"
+                >
+                  Close bidding → reveal
+                </button>
+                <InfoTip text="Stops the commit window. Bidders can now reveal the amounts that match their commitments. Anyone can use this when the time elapses; adjust for a production rule set on chain." />
+              </div>
             )}
             {selected.phase === "revealing" && (
-              <button
-                type="button"
-                onClick={onFinalize}
-                className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-500"
-              >
-                Finalize winner
-              </button>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={onFinalize}
+                  className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-500"
+                >
+                  Finalize winner
+                </button>
+                <InfoTip text="Recomputes hashes, picks the top valid bid, and records the winner and clearing amount. The winner can then pay the seller with a private transfer." />
+              </div>
             )}
           </div>
 
@@ -359,8 +377,18 @@ export default function SealedBidPage() {
               <thead>
                 <tr className="border-b border-zinc-200 dark:border-zinc-700">
                   <th className="py-2 pr-4">Bidder</th>
-                  <th className="py-2 pr-4">Commitment</th>
-                  <th className="py-2">Revealed</th>
+                  <th className="py-2 pr-4">
+                    <span className="inline-flex items-center gap-1">
+                      Commitment
+                      <InfoTip text="A SHA-256 digest published during bidding. It hides your amount until you reveal, while binding you to a single bid." />
+                    </span>
+                  </th>
+                  <th className="py-2">
+                    <span className="inline-flex items-center gap-1">
+                      Revealed
+                      <InfoTip text="The USDC amount you disclose in the reveal phase, checked against the commitment. Empty until a successful reveal for that row." />
+                    </span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -388,7 +416,12 @@ export default function SealedBidPage() {
 
           {selected.phase === "revealing" && publicKey && (
             <div className="space-y-3 rounded-xl bg-zinc-50 p-4 dark:bg-zinc-950">
-              <p className="text-sm font-medium">Reveal your bid</p>
+              <p className="text-sm font-medium">
+                <span className="inline-flex items-center gap-1">
+                  Reveal your bid
+                  <InfoTip text="Enter the same USDC amount you used when bidding. The app re-hashes it with the stored salt to match your commitment." />
+                </span>
+              </p>
               {selected.bids
                 .filter((b) => b.bidder === publicKey.toBase58())
                 .map((b) => (
@@ -440,14 +473,17 @@ export default function SealedBidPage() {
               {publicKey &&
                 selected.winner === publicKey.toBase58() &&
                 selected.winningAmountBaseUnits !== undefined && (
-                  <button
-                    type="button"
-                    onClick={onPaySeller}
-                    disabled={busy}
-                    className="mt-3 rounded-lg bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-600"
-                  >
-                    Pay seller (private MagicBlock transfer)
-                  </button>
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={onPaySeller}
+                      disabled={busy}
+                      className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-600"
+                    >
+                      Pay seller (private MagicBlock transfer)
+                    </button>
+                    <InfoTip text="Only the connected winner wallet. Uses Private Payments (privacy: “private”): the clearing amount to the auction seller, with a memo for this auction id. Shows well in a 3-minute demo as the money step." />
+                  </div>
                 )}
             </div>
           )}

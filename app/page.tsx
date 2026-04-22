@@ -19,12 +19,6 @@ export default function Home() {
           (devnet SPL with <code className="font-mono text-sm text-zinc-800 dark:text-zinc-200">privacy: &quot;private&quot;</code>
           ).
         </p>
-        <p className="max-w-2xl text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
-          <strong className="font-medium text-zinc-800 dark:text-zinc-200">Architecture in one line:</strong>{" "}
-          your app calls the hosted payments API → receives an unsigned transaction → the user signs with
-          a normal Solana wallet → devnet confirms. Auction rules run in this demo&apos;s client layer so
-          the MagicBlock integration stays easy to audit.
-        </p>
       </header>
 
       <section aria-labelledby="modes-heading">
