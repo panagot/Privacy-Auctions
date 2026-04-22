@@ -80,7 +80,15 @@ Auction state is **per-browser** (`localStorage`); bidders are distinguished by 
 3. **Wallet A:** under **Place sealed bid**, place a first sealed commitment, e.g. `1.00` USDC.
 4. **Switch the wallet to Wallet B,** keep the same auction in the dropdown, set amount to **`2.00` USDC** (or your first amount **+1**), and **Seal bid**. The table should show two rows with **different** shortened addresses under **Bidder** (or the same if you use the same wallet for both, which is only useful for load testing—not a second bidder).
 5. As **the seller (wallet A)**, click **End bidding & open reveal** (available before the timer; other wallets must wait for the scheduled end if they are not the seller). **Reveal** is not automatic—you open that phase on purpose when you are ready to disclose amounts.
-6. Each **bidder** connection reveals each of **their** rows: enter the exact USDC, **Reveal** per row. **Finalize winner**, then the **winning** wallet **Pay seller (private…)** for the on-chain step.
+6. Each **bidder** connection reveals each of **their** rows: enter the exact USDC, **Reveal** per row. **Finalize winner**, then the **winning** wallet **Pay seller (private MagicBlock transfer)** for the on-chain step.
+
+### Manual test: private Dutch (same browser, two wallets)
+
+1. **Fund devnet USDC** in the **buyer** wallet (at least enough for the default **Deposit** plus the price at the tick you intend to take — the button label shows the **current** clearing amount).
+2. **Wallet A (seller):** on `/dutch`, set start/floor/tick, then **Start / replace session (seller = connected wallet)**. The current price steps down on the timer shown on the page.
+3. **Switch to Wallet B (buyer),** as the buyer **Deposit to rollup** (same 0.1 USDC default pattern as sealed-bid), then when the price is right, **Buy now (private pay seller)**. That is the `POST /v1/spl/transfer` private path to the seller.
+
+If something fails, check the status line on the page and, for SPL errors, that **USDC** in the funding wallet (not only SOL) matches what deposit + private amount require.
 
 ---
 
@@ -92,8 +100,10 @@ Auction state is **per-browser** (`localStorage`); bidders are distinguished by 
 | `lib/magicblock/` | HTTP client for deposit / transfer (timeouts, error handling) |
 | `lib/sealed-auction-store.ts`, `lib/dutch-auction-store.ts` | Demo auction state in the browser |
 | `lib/commitment.ts` | SHA-256 sealed-bid commitments |
-| `lib/solana/` | Sign and send base64 transactions from the wallet |
+| `lib/tx-error.ts` | User-facing formatting for `sendTransaction` / RPC errors |
+| `lib/solana/` | Sign and send base64 transactions from the wallet (blockhash refresh) |
 | `components/` | App shell, wallet providers, guided walkthroughs |
+| `scripts/verify-flows.ts` | Invoked by `npm run verify:flows` |
 
 ---
 

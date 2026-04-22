@@ -39,23 +39,31 @@ export function AppShell({ children }: { children: ReactNode }) {
       </a>
       <header className="border-b border-zinc-200 bg-white/80 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/80">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-4 px-4 py-4">
-          <div className="flex flex-wrap items-center gap-6">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-6">
             <Link
               href="/"
-              className="font-semibold tracking-tight text-zinc-900 dark:text-zinc-100"
+              className="shrink-0 font-semibold tracking-tight text-zinc-900 dark:text-zinc-100"
             >
               Privacy Auctions
             </Link>
             <nav
               className="flex flex-wrap gap-4 text-sm"
-              aria-label="Primary"
+              aria-label="Auction modes"
             >
               <NavLink href="/sealed-bid">Sealed-bid</NavLink>
               <NavLink href="/dutch">Private Dutch</NavLink>
             </nav>
           </div>
-          <div className="wallet-adapter-shell">
-            <WalletMultiButton />
+          <div className="flex shrink-0 items-center gap-3 sm:gap-4">
+            <nav
+              className="text-sm"
+              aria-label="Context"
+            >
+              <NavLink href="/context">Context</NavLink>
+            </nav>
+            <div className="wallet-adapter-shell">
+              <WalletMultiButton />
+            </div>
           </div>
         </div>
       </header>

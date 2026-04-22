@@ -26,8 +26,8 @@ export default function Home() {
           Modes
         </h2>
         <p className="mt-2 max-w-2xl text-sm text-zinc-600 dark:text-zinc-400">
-          Pick a flow to try with a wallet, or scroll to the guided sequence on each page for a narrated
-          walkthrough without signing.
+          Pick a flow to try with a wallet, or scroll to the guided sequence on each page for a
+          narrated walkthrough without signing.
         </p>
         <div className="mt-6 grid gap-5 sm:grid-cols-2">
           <Link
