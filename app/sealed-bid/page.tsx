@@ -3,8 +3,9 @@
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { DEVNET_USDC_MINT } from "@/lib/constants";
+import { DEFAULT_DEPOSIT_USDC, DEVNET_USDC_MINT } from "@/lib/constants";
 import { formatUserError } from "@/lib/error-message";
+import { formatSendTransactionError } from "@/lib/tx-error";
 import { formatBaseUnitsAsUsdc, parseUsdcToBaseUnits } from "@/lib/format";
 import { buildDepositTx, buildPrivateTransferTx } from "@/lib/magicblock/client";
 import {
@@ -65,6 +66,24 @@ export default function SealedBidPage() {
     [auctions, activeId],
   );
 
+  const canOpenReveal = useMemo(() => {
+    if (!selected || selected.phase !== "bidding") return false;
+    if (clock >= selected.endTimeMs) return true;
+    if (publicKey && publicKey.toBase58() === selected.seller) return true;
+    return false;
+  }, [selected, clock, publicKey]);
+
+  const msUntilEnd = useMemo(() => {
+    if (!selected || selected.phase !== "bidding") return 0;
+    return Math.max(0, selected.endTimeMs - clock);
+  }, [selected, clock]);
+
+  const timeLeftStr = (ms: number) => {
+    const s = Math.floor(ms / 1000);
+    const m = Math.floor(s / 60);
+    return `${m}:${(s % 60).toString().padStart(2, "0")}`;
+  };
+
   const runTx = async (label: string, fn: () => Promise<string>) => {
     if (!adapter || !publicKey || !signTransaction) {
       setStatus("Connect a wallet first.");
@@ -74,15 +93,11 @@ export default function SealedBidPage() {
     setStatus(`${label}…`);
     try {
       const sig = await fn();
-      const latest = await connection.getLatestBlockhash();
-      await connection.confirmTransaction({
-        signature: sig,
-        blockhash: latest.blockhash,
-        lastValidBlockHeight: latest.lastValidBlockHeight,
-      });
+      await connection.confirmTransaction(sig, "confirmed");
       setStatus(`${label} confirmed: ${sig}`);
     } catch (e) {
-      setStatus(`${label} failed: ${formatUserError(e)}`);
+      const msg = await formatSendTransactionError(e, connection);
+      setStatus(`${label} failed: ${msg}`);
     } finally {
       setBusy(false);
     }
@@ -90,7 +105,7 @@ export default function SealedBidPage() {
 
   const onDeposit = () =>
     runTx("Deposit to rollup", async () => {
-      const base = parseUsdcToBaseUnits("0.5");
+      const base = parseUsdcToBaseUnits(DEFAULT_DEPOSIT_USDC);
       const built = await buildDepositTx({
         owner: publicKey!.toBase58(),
         amount: Number(base),
@@ -148,9 +163,25 @@ export default function SealedBidPage() {
   const onOpenReveal = () => {
     if (!selected) return;
     try {
-      openRevealPhase(selected.id);
+      const now = Date.now();
+      const beforeEnd = now < selected.endTimeMs;
+      if (beforeEnd) {
+        if (!publicKey || publicKey.toBase58() !== selected.seller) {
+          setStatus(
+            "Only the connected seller wallet can end bidding before the scheduled time. Others: wait for the countdown, then use this button.",
+          );
+          return;
+        }
+        openRevealPhase(selected.id, {
+          asSellerForEarlyEnd: publicKey.toBase58(),
+        });
+      } else {
+        openRevealPhase(selected.id);
+      }
       refresh();
-      setStatus("Reveal phase open — submit your amounts.");
+      setStatus(
+        "Reveal phase is open. Each bidder enters the exact USDC for each row, then Reveal; then click Finalize winner, then the winner can pay the seller on-chain.",
+      );
     } catch (e) {
       setStatus(formatUserError(e));
     }
@@ -198,8 +229,8 @@ export default function SealedBidPage() {
         throw new Error("Only the winner wallet can settle");
       }
       const built = await buildPrivateTransferTx({
-        owner: publicKey.toBase58(),
-        destination: selected.seller,
+        from: publicKey.toBase58(),
+        to: selected.seller,
         amount: Number(selected.winningAmountBaseUnits),
         mint: DEVNET_USDC_MINT,
         memo: `sealed:${selected.id}`,
@@ -221,12 +252,18 @@ export default function SealedBidPage() {
             commitment
           </strong>{" "}
           (hash of auction id, wallet, amount, and salt)—not the amount itself.
-          When bidding ends, bidders reveal; the app checks hashes and picks a
-          winner. Only then does the winner call MagicBlock to{" "}
+          When the bidding window ends{" "}
+          <strong className="font-medium text-zinc-800 dark:text-zinc-200">
+            (or the seller ends early)
+          </strong>
+          , the phase switches to <strong>reveal</strong>: bidders type their
+          USDC and click Reveal, then <strong>Finalize winner</strong>, then the
+          winner can{" "}
           <strong className="font-medium text-zinc-800 dark:text-zinc-200">
             pay the seller privately
           </strong>{" "}
-          on devnet.
+          on devnet. Deposits need a funded devnet USDC balance—see the status
+          line if a tx fails.
         </p>
       </div>
 
@@ -240,7 +277,11 @@ export default function SealedBidPage() {
         <p className="mt-2 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
           Deposit devnet USDC into the rollup balance, then use a private SPL
           transfer to the seller after the auction is settled. Both actions go
-          through the same payments API your video should show end-to-end.
+          through the same payments API your video should show end-to-end. You
+          must have enough <strong className="font-medium text-zinc-800 dark:text-zinc-200">devnet USDC</strong> in the
+          connected wallet (SPL token account) before the deposit will simulate;
+          fund that first if you see <code className="text-xs">insufficient funds</code> in
+          the status.
         </p>
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <button
@@ -249,9 +290,11 @@ export default function SealedBidPage() {
             disabled={busy || !publicKey}
             className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-500 disabled:opacity-50"
           >
-            Deposit 0.5 USDC (rollup)
+            Deposit {DEFAULT_DEPOSIT_USDC} USDC (rollup)
           </button>
-          <InfoTip text="Builds a deposit transaction from the API; your wallet signs and devnet confirms. Ensure the wallet has devnet SOL and USDC for fees and the transfer." />
+          <InfoTip
+            text={`The API builds a ${DEFAULT_DEPOSIT_USDC} USDC deposit. Top up this wallet’s devnet USDC (SPL) to at least that amount, plus devnet SOL for fees, or the Token program returns insufficient funds.`}
+          />
         </div>
       </section>
 
@@ -343,20 +386,40 @@ export default function SealedBidPage() {
               <p className="text-sm text-zinc-600 dark:text-zinc-400">
                 Seller {shortAddr(selected.seller)} · Phase{" "}
                 <span className="font-medium">{selected.phase}</span>
+                {selected.phase === "bidding" ? (
+                  <>
+                    {" "}
+                    · Bidding {clock >= selected.endTimeMs ? "ended" : "ends"}{" "}
+                    {new Date(selected.endTimeMs).toLocaleString()}{" "}
+                    {clock < selected.endTimeMs ? (
+                      <span className="tabular-nums">
+                        ({timeLeftStr(msUntilEnd)} left)
+                      </span>
+                    ) : null}
+                  </>
+                ) : null}
               </p>
             </div>
-            {selected.phase === "bidding" &&
-              clock >= selected.endTimeMs && (
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={onOpenReveal}
-                  className="rounded-lg bg-amber-600 px-3 py-2 text-sm font-medium text-white hover:bg-amber-500"
-                >
-                  Close bidding → reveal
-                </button>
-                <InfoTip text="Stops the commit window. Bidders can now reveal the amounts that match their commitments. Anyone can use this when the time elapses; adjust for a production rule set on chain." />
+            {selected.phase === "bidding" && canOpenReveal && (
+              <div className="flex flex-col items-stretch gap-1 sm:items-end">
+                <div className="flex items-center gap-1 sm:justify-end">
+                  <button
+                    type="button"
+                    onClick={onOpenReveal}
+                    className="rounded-lg bg-amber-600 px-3 py-2 text-sm font-medium text-white hover:bg-amber-500"
+                  >
+                    End bidding &amp; open reveal
+                  </button>
+                  <InfoTip text="Starts the reveal phase. After the scheduled end time, anyone can click this. Before then, only the connected seller wallet can end early for faster manual testing. Then each bidder must reveal amounts and you finalize the winner." />
+                </div>
               </div>
+            )}
+            {selected.phase === "bidding" && !canOpenReveal && (
+              <p className="max-w-sm text-right text-xs text-zinc-500 dark:text-zinc-400 sm:max-w-xs">
+                Bidding in progress. The seller (connected) can use “End bidding
+                &amp; open reveal” before the time above; other wallets must wait
+                for that time.
+              </p>
             )}
             {selected.phase === "revealing" && (
               <div className="flex items-center gap-1">
@@ -482,7 +545,7 @@ export default function SealedBidPage() {
                     >
                       Pay seller (private MagicBlock transfer)
                     </button>
-                    <InfoTip text="Only the connected winner wallet. Uses Private Payments (privacy: “private”): the clearing amount to the auction seller, with a memo for this auction id. Shows well in a 3-minute demo as the money step." />
+                    <InfoTip text="Only the connected winner wallet. Uses POST /v1/spl/transfer with visibility: private, from/to wallets, and ephemeral balances after your rollup deposit. Memo ties to this auction id." />
                   </div>
                 )}
             </div>

@@ -130,13 +130,28 @@ export async function placeSealedCommitment(input: {
   return bid;
 }
 
-/** Move to reveal phase after bidding window (manual or timer in UI). */
-export function openRevealPhase(auctionId: string) {
+/**
+ * Move to reveal after the scheduled end time, or—before that—if
+ * `asSellerForEarlyEnd` is the listed seller (handy for manual / demo without
+ * waiting the full window).
+ */
+export function openRevealPhase(
+  auctionId: string,
+  options?: { asSellerForEarlyEnd?: string },
+) {
   const auctions = load();
-  const auction = auctions.find((a) => a.id === auctionId);
-  if (!auction) throw new Error("Auction not found");
+  const idx = auctions.findIndex((a) => a.id === auctionId);
+  if (idx === -1) throw new Error("Auction not found");
+  const auction = auctions[idx];
   if (auction.phase !== "bidding") throw new Error("Invalid phase");
-  if (Date.now() < auction.endTimeMs) throw new Error("Bidding still open");
+  if (Date.now() < auction.endTimeMs) {
+    if (options?.asSellerForEarlyEnd !== auction.seller) {
+      throw new Error(
+        "Bidding is still open. Wait until the scheduled end, or ask the seller to end the auction to open the reveal phase (demo).",
+      );
+    }
+    auction.endTimeMs = Date.now() - 1;
+  }
   auction.phase = "revealing";
   save(auctions);
 }

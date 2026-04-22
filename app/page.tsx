@@ -16,8 +16,8 @@ export default function Home() {
           <strong className="font-medium text-zinc-800 dark:text-zinc-200">
             Private Payments API
           </strong>{" "}
-          (devnet SPL with <code className="font-mono text-sm text-zinc-800 dark:text-zinc-200">privacy: &quot;private&quot;</code>
-          ).
+          (devnet SPL with <code className="font-mono text-sm text-zinc-800 dark:text-zinc-200">visibility: &quot;private&quot;</code>
+          on transfer).
         </p>
       </header>
 

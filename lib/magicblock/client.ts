@@ -4,9 +4,9 @@ import {
   MAGICBLOCK_PAYMENTS_URL,
 } from "@/lib/constants";
 import type {
+  BalanceLayer,
   BuildTxResponse,
   DepositBody,
-  TransferBody,
   WithdrawBody,
 } from "@/lib/magicblock/types";
 
@@ -44,15 +44,33 @@ export function buildDepositTx(
   });
 }
 
-export function buildPrivateTransferTx(
-  body: Omit<TransferBody, "cluster" | "privacy"> & {
-    cluster?: TransferBody["cluster"];
-  },
-): Promise<BuildTxResponse> {
+/**
+ * Private settlement: spend from the sender’s **ephemeral** (rollup) balance
+ * to the receiver’s **ephemeral** private balance, matching the usual
+ * “deposit to rollup, then private pay” devnet path.
+ */
+export function buildPrivateTransferTx(body: {
+  from: string;
+  to: string;
+  amount: number;
+  mint?: string;
+  memo?: string;
+  cluster?: string;
+  validator?: string;
+  fromBalance?: BalanceLayer;
+  toBalance?: BalanceLayer;
+}): Promise<BuildTxResponse> {
   return postJson("/v1/spl/transfer", {
-    cluster: DEFAULT_CLUSTER,
-    privacy: "private",
-    ...body,
+    cluster: body.cluster ?? DEFAULT_CLUSTER,
+    from: body.from,
+    to: body.to,
+    amount: body.amount,
+    visibility: "private",
+    fromBalance: body.fromBalance ?? "ephemeral",
+    toBalance: body.toBalance ?? "ephemeral",
+    ...(body.mint ? { mint: body.mint } : {}),
+    ...(body.memo ? { memo: body.memo } : {}),
+    ...(body.validator ? { validator: body.validator } : {}),
   });
 }
 

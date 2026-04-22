@@ -16,7 +16,12 @@ import {
   TermSig,
   TermStepHeading,
 } from "@/components/demo-terminal";
-import { DEVNET_USDC_MINT } from "@/lib/constants";
+import { DEFAULT_DEPOSIT_USDC, DEVNET_USDC_MINT } from "@/lib/constants";
+import { parseUsdcToBaseUnits } from "@/lib/format";
+
+const DEPOSIT_BASE_UNITS = Number(
+  parseUsdcToBaseUnits(DEFAULT_DEPOSIT_USDC),
+);
 
 const SELLER = "Maya…vH2q";
 const BUYER = "Alex…tN8r";
@@ -34,12 +39,14 @@ const MAX = 6;
 
 const TRANSFER_BODY = (amount: number) =>
   `{
-  "owner": "${BUYER}",
-  "destination": "${SELLER}",
+  "from": "${BUYER}",
+  "to": "${SELLER}",
   "amount": ${amount},
   "mint": "${DEVNET_USDC_MINT}",
   "cluster": "devnet",
-  "privacy": "private",
+  "visibility": "private",
+  "fromBalance": "ephemeral",
+  "toBalance": "ephemeral",
   "memo": "dutch:${SESSION_ID}"
 }`;
 
@@ -56,12 +63,38 @@ function DutchTerminalBlocks({ step }: { step: number }) {
         <>
           <TermStepHeading
             step={1}
-            title="Session and health check"
-            summary="Local session parameters plus a quick reachability check to the payments API."
+            title="Session, health, and deposit"
+            summary={`Local Dutch parameters, payments API is up, then the buyer funds the same rollup default as the live “Deposit ${DEFAULT_DEPOSIT_USDC} USDC” control.`}
           />
           <DemoMagicBlockCard>
             <TermHttp method="GET" path="/health" />
             <TermResponse status="200 OK">{`{ "status": "ok" }`}</TermResponse>
+          </DemoMagicBlockCard>
+          <TermComment>
+            Faucet or Circle devnet USDC first—same as the “insufficient funds”
+            fixes you need on the main page; deposit pulls from the SPL
+            balance.
+          </TermComment>
+          <DemoMagicBlockCard>
+            <TermHttp
+              method="POST"
+              path="/v1/spl/deposit"
+              body={`{
+  "owner": "${BUYER}",
+  "amount": ${DEPOSIT_BASE_UNITS},
+  "mint": "${DEVNET_USDC_MINT}",
+  "cluster": "devnet",
+  "initIfMissing": true,
+  "initAtasIfMissing": true,
+  "idempotent": true
+}`}
+            />
+            <TermResponse status="200 OK">{`{
+  "kind": "deposit",
+  "transactionBase64": "AQID…trunc…==",
+  "sendTo": "base",
+  "requiredSigners": ["${BUYER}"]
+}`}</TermResponse>
           </DemoMagicBlockCard>
           <DemoDutchSessionSnapshot
             sessionId={SESSION_ID}
@@ -72,9 +105,12 @@ function DutchTerminalBlocks({ step }: { step: number }) {
           />
           <TermEffect>
             <p>
-              The price schedule runs in the app until someone buys; the first
-              on-chain movement is the buyer’s transfer when they accept the
-              current price.
+              On the real page, deposit sits above “Configure sale” so the buyer
+              can cover the private buy at a later tick. The first spend you
+              record for a recording is still this deposit, then a{" "}
+              <code className={codeClass}>from</code>/
+              <code className={codeClass}>to</code> private transfer at the
+              clearing price.
             </p>
           </TermEffect>
         </>
@@ -160,7 +196,7 @@ function DutchTerminalBlocks({ step }: { step: number }) {
               In the live app, the next control is purchase; here that leads to
               the MagicBlock{" "}
               <code className={codeClass}>transfer</code> with{" "}
-              <code className={codeClass}>privacy: private</code>.
+              <code className={codeClass}>visibility: &quot;private&quot;</code>.
             </p>
           </TermEffect>
         </>
@@ -190,11 +226,15 @@ function DutchTerminalBlocks({ step }: { step: number }) {
         <>
           <TermStepHeading
             step={7}
-            title="Private transfer"
-            summary="Same transfer endpoint as sealed-bid; body uses the clearing price from the session."
+            title="Private transfer (buy at clearing)"
+            summary="POST /v1/spl/transfer; amount = clearing price in base units at the moment of Buy now."
           />
           <TermComment>
             Amounts are SPL base units (6 decimals for this devnet USDC mint).
+            The app refreshes the blockhash in the unsigned transaction right
+            before the wallet
+            <code className="mx-1">sign</code> step, avoiding a stale
+            <code className="mx-1">recentBlockhash</code> on devnet.
           </TermComment>
           <DemoMagicBlockCard>
             <TermHttp
@@ -215,10 +255,14 @@ function DutchTerminalBlocks({ step }: { step: number }) {
           <TermSig label="Signature" value="devnet signature" />
           <TermEffect>
             <p>
-              Sign the returned transaction in the wallet, broadcast, then
-              confirm as usual. The sealed-bid flow uses the same{" "}
-              <code className={codeClass}>POST /v1/spl/transfer</code> pattern
-              with <code className={codeClass}>privacy: private</code>.
+              Same shape as a successful private buy:{" "}
+              <code className={codeClass}>from</code> = buyer,{" "}
+              <code className={codeClass}>to</code> = seller,{" "}
+              <code className={codeClass}>visibility: &quot;private&quot;</code>,{" "}
+              <code className={codeClass}>fromBalance</code> /{" "}
+              <code className={codeClass}>toBalance</code> ={" "}
+              <code className={codeClass}>ephemeral</code>, then devnet
+              confirm. Sealed-bid final pay reuses the same end state.
             </p>
           </TermEffect>
         </>
@@ -278,9 +322,10 @@ export function DutchSimulation() {
             Dutch auction sequence
           </h2>
           <p className="mt-2 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
-            Follows the session, price display, and purchase steps from the
-            controls above, then the private transfer used at settlement—the
-            same API shape as sealed-bid.
+            Health check, a {DEFAULT_DEPOSIT_USDC} USDC-style deposit, ticks on
+            the same schedule as the card, then
+            <code className="mx-1">Buy now</code> and the private transfer
+            (verified API fields). Screen-record friendly.
           </p>
         </div>
         <label className="flex cursor-pointer items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400">
@@ -296,7 +341,7 @@ export function DutchSimulation() {
 
       <DemoTerminalShell
         windowTitle="Sample run"
-        subtitle="Ticks are scripted; the live page drives real timers and balances."
+        subtitle="Ticks are scripted; the live app uses a real clock, 0.1 USDC default deposit, blockhash refresh before sign, and devnet USDC."
       >
         <p className="text-sm text-zinc-500 dark:text-zinc-400">
           Marginal notes under each step state what changed.

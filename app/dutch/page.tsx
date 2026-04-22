@@ -3,8 +3,9 @@
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { DEVNET_USDC_MINT } from "@/lib/constants";
+import { DEFAULT_DEPOSIT_USDC, DEVNET_USDC_MINT } from "@/lib/constants";
 import { formatUserError } from "@/lib/error-message";
+import { formatSendTransactionError } from "@/lib/tx-error";
 import {
   createDutchSession,
   getDutchSession,
@@ -67,15 +68,12 @@ export default function DutchPage() {
     setStatus(`${label}…`);
     try {
       const sig = await fn();
-      const latest = await connection.getLatestBlockhash();
-      await connection.confirmTransaction({
-        signature: sig,
-        blockhash: latest.blockhash,
-        lastValidBlockHeight: latest.lastValidBlockHeight,
-      });
+      await connection.confirmTransaction(sig, "confirmed");
       setStatus(`${label} confirmed: ${sig}`);
     } catch (e) {
-      setStatus(`${label} failed: ${formatUserError(e)}`);
+      setStatus(
+        `${label} failed: ${await formatSendTransactionError(e, connection)}`,
+      );
     } finally {
       setBusy(false);
     }
@@ -83,7 +81,7 @@ export default function DutchPage() {
 
   const onDeposit = () =>
     runTx("Deposit to rollup", async () => {
-      const base = parseUsdcToBaseUnits("0.5");
+      const base = parseUsdcToBaseUnits(DEFAULT_DEPOSIT_USDC);
       const built = await buildDepositTx({
         owner: publicKey!.toBase58(),
         amount: Number(base),
@@ -136,8 +134,8 @@ export default function DutchPage() {
     setStatus("Private buy (pay seller)…");
     try {
       const built = await buildPrivateTransferTx({
-        owner: publicKey.toBase58(),
-        destination: seller,
+        from: publicKey.toBase58(),
+        to: seller,
         amount: Number(price),
         mint: DEVNET_USDC_MINT,
         memo: `dutch:${sid}`,
@@ -147,17 +145,14 @@ export default function DutchPage() {
         asSignerWalletAdapter(adapter),
         built.transactionBase64,
       );
-      const latest = await connection.getLatestBlockhash();
-      await connection.confirmTransaction({
-        signature: sig,
-        blockhash: latest.blockhash,
-        lastValidBlockHeight: latest.lastValidBlockHeight,
-      });
+      await connection.confirmTransaction(sig, "confirmed");
       markDutchSold(publicKey.toBase58());
       refresh();
       setStatus(`Private buy confirmed: ${sig}`);
     } catch (e) {
-      setStatus(`Buy failed: ${formatUserError(e)}`);
+      setStatus(
+        `Buy failed: ${await formatSendTransactionError(e, connection)}`,
+      );
     } finally {
       setBusy(false);
     }
@@ -188,7 +183,9 @@ export default function DutchPage() {
         </div>
         <p className="mt-2 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
           Deposit devnet USDC into the rollup so the buyer can settle privately
-          at the live price. Show this plus the transfer in your demo recording.
+          at the live price. The wallet must already hold that devnet USDC (SPL)
+          or the transaction will fail with an insufficient-balance error from
+          the token program.
         </p>
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <button
@@ -197,9 +194,11 @@ export default function DutchPage() {
             disabled={busy || !publicKey}
             className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-500 disabled:opacity-50"
           >
-            Deposit 0.5 USDC (rollup)
+            Deposit {DEFAULT_DEPOSIT_USDC} USDC (rollup)
           </button>
-          <InfoTip text="Builds a deposit from the API; the wallet must hold devnet SOL and USDC. Confirms on devnet after signing." />
+          <InfoTip
+            text={`API-built ${DEFAULT_DEPOSIT_USDC} USDC deposit. Wallet needs that much devnet USDC (SPL) plus SOL for fees.`}
+          />
         </div>
       </section>
 

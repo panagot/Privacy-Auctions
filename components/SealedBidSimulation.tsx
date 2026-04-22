@@ -15,7 +15,12 @@ import {
   TermSig,
   TermStepHeading,
 } from "@/components/demo-terminal";
-import { DEVNET_USDC_MINT } from "@/lib/constants";
+import { DEFAULT_DEPOSIT_USDC, DEVNET_USDC_MINT } from "@/lib/constants";
+import { parseUsdcToBaseUnits } from "@/lib/format";
+
+const DEPOSIT_BASE_UNITS = Number(
+  parseUsdcToBaseUnits(DEFAULT_DEPOSIT_USDC),
+);
 
 const SELLER = "Ali8K2m…9vQr";
 const BOB = "Bob3pQ9…nWx1";
@@ -25,12 +30,14 @@ const AUCTION_ID = "demo-sealed-01";
 const AUTO_MS = 3200;
 
 const USDC_BODY = `{
-  "owner": "${CAROL}",
-  "destination": "${SELLER}",
+  "from": "${CAROL}",
+  "to": "${SELLER}",
   "amount": 3000000,
   "mint": "${DEVNET_USDC_MINT}",
   "cluster": "devnet",
-  "privacy": "private",
+  "visibility": "private",
+  "fromBalance": "ephemeral",
+  "toBalance": "ephemeral",
   "memo": "sealed:${AUCTION_ID}"
 }`;
 
@@ -108,14 +115,18 @@ function SealedStepBlocks({ step }: { step: number }) {
         <>
           <TermStepHeading
             step={3}
-            title="Bidding ends"
-            summary="Window closes; the auction moves to reveal."
+            title="End bidding → reveal"
+            summary="In the app, the seller can open the reveal phase before the timer, or everyone waits for the window."
           />
-          <TermPrompt>phase ← REVEALING (bidding closed)</TermPrompt>
+          <TermPrompt>
+            End bidding &amp; open reveal → phase ← REVEALING
+          </TermPrompt>
           <TermEffect>
             <p>
-              Raw amounts stay off the record until bidders submit valid
-              reveals that match their commitments.
+              Matches the live UI: the seller (or the clock after the scheduled
+              end) moves the session to reveal. Raw amounts stay off the
+              public graph until bidders enter amounts that match their
+              commitments, then you finalize the winner.
             </p>
           </TermEffect>
         </>
@@ -155,11 +166,11 @@ function SealedStepBlocks({ step }: { step: number }) {
           <TermStepHeading
             step={5}
             title="Deposit to rollup"
-            summary="Fund the ephemeral balance on devnet so the private rail can settle."
+            summary="Fund the ephemeral (ER) balance on devnet—the same default amount as the live app button."
           />
           <TermComment>
-            Deposit uses the same HTTP surface as the later transfer—one client
-            integration.
+            The wallet must hold devnet USDC (SPL) for this mint, plus devnet
+            SOL for fees—same as a successful run on the page.
           </TermComment>
           <DemoMagicBlockCard>
             <TermHttp
@@ -167,7 +178,7 @@ function SealedStepBlocks({ step }: { step: number }) {
               path="/v1/spl/deposit"
               body={`{
   "owner": "${CAROL}",
-  "amount": 5000000,
+  "amount": ${DEPOSIT_BASE_UNITS},
   "mint": "${DEVNET_USDC_MINT}",
   "cluster": "devnet",
   "initIfMissing": true,
@@ -197,19 +208,27 @@ function SealedStepBlocks({ step }: { step: number }) {
           <TermStepHeading
             step={6}
             title="Private transfer to seller"
-            summary="Build a SPL transfer with privacy set to private, then sign and send."
+            summary="POST /v1/spl/transfer with from, to, visibility, and balance layers; sign and send the returned tx."
           />
           <DemoMagicBlockCard>
             <TermHttp method="POST" path="/v1/spl/transfer" body={USDC_BODY} />
             <TermResponse status="200 OK">{TX_RESP}</TermResponse>
           </DemoMagicBlockCard>
           <TermPrompt>wallet.signAndSend(transactionBase64)</TermPrompt>
+          <TermComment>
+            The app replaces the blockhash in the unsigned tx (RPC) right before
+            the wallet prompt so a slightly stale API build still simulates on
+            devnet; then the wallet signs and the network confirms.
+          </TermComment>
           <TermSig label="Signature" value="5ZkT…8qLm" />
           <TermEffect>
             <p>
-              <code className={codeClass}>privacy: &quot;private&quot;</code>{" "}
-              routes settlement through the private SPL path rather than a
-              standard public token transfer on the base layer.
+              <code className={codeClass}>from</code> /{" "}
+              <code className={codeClass}>to</code>,{" "}
+              <code className={codeClass}>visibility: &quot;private&quot;</code>
+              , and <code className={codeClass}>ephemeral</code> balances for
+              both sides match the current MagicBlock validation schema (same
+              pattern that succeeded in a working devnet run).
             </p>
           </TermEffect>
         </>
@@ -270,9 +289,11 @@ export function SealedBidSimulation() {
             Sealed-bid sequence
           </h2>
           <p className="mt-2 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
-            A fixed walkthrough of the same stages as the form above: listings,
-            commitments, settlement, then MagicBlock deposit and transfer.
-            Advance with{" "}
+            Stages line up with the form: commitments, end bidding to reveal
+            (seller can end early), verify and finalize, then a deposit
+            (defaults to {DEFAULT_DEPOSIT_USDC} USDC) and a MagicBlock
+            <code className="mx-1">from</code>/
+            <code className="mx-1">to</code> transfer. Advance with{" "}
             <span className="text-zinc-800 dark:text-zinc-200">Next</span>, or
             enable a timed advance for screen recording.
           </p>
@@ -290,7 +311,7 @@ export function SealedBidSimulation() {
 
       <DemoTerminalShell
         windowTitle="Sample run"
-        subtitle="No wallet connection; requests and balances are illustrative."
+        subtitle="No wallet: bodies match the app (deposit amount, transfer schema, blockhash refresh on send). Balances are illustrative."
       >
         <p className="text-sm text-zinc-500 dark:text-zinc-400">
           Marginal notes under each step state what changed.

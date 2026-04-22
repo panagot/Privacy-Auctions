@@ -28,13 +28,18 @@ export type DepositBody = {
   validator?: string;
 };
 
+/** `POST /v1/spl/transfer` (MagicBlock Payments) */
+export type BalanceLayer = "base" | "ephemeral";
+
 export type TransferBody = {
-  owner: string;
-  destination: string;
+  from: string;
+  to: string;
   amount: number;
   cluster?: ClusterParam;
   mint?: string;
-  privacy?: string;
+  visibility: "public" | "private";
+  fromBalance: BalanceLayer;
+  toBalance: BalanceLayer;
   memo?: string;
   validator?: string;
 };

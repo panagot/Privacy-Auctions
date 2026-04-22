@@ -2,6 +2,9 @@
 export const DEVNET_USDC_MINT =
   "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU";
 
+/** One-click demo deposit size (devnet). Needs that much in the wallet USDC ATA. */
+export const DEFAULT_DEPOSIT_USDC = "0.1";
+
 export const DEFAULT_CLUSTER = "devnet" as const;
 
 export const MAGICBLOCK_PAYMENTS_URL =
