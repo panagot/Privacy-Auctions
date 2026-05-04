@@ -2,6 +2,7 @@ import type {
   SignerWalletAdapter,
   WalletAdapter,
 } from "@solana/wallet-adapter-base";
+import bs58 from "bs58";
 import {
   AddressLookupTableAccount,
   Connection,
@@ -87,6 +88,27 @@ export async function prepareUnsignedTransactionFromBase64(
   return new VersionedTransaction(compiled);
 }
 
+/** Base58 of the first signature, for “already processed” recovery. */
+function firstSignatureB58(
+  tx: VersionedTransaction | Transaction,
+): string {
+  if (tx instanceof VersionedTransaction) {
+    return bs58.encode(tx.signatures[0]!);
+  }
+  const s = (tx as Transaction).signature;
+  if (!s) {
+    throw new Error("No signature on transaction");
+  }
+  return bs58.encode(Uint8Array.from(s));
+}
+
+function isAlreadyProcessedError(e: unknown): boolean {
+  const s = e instanceof Error ? e.message : String(e);
+  return /already been processed|Transaction simulation failed:.*already/i.test(
+    s,
+  );
+}
+
 export async function signAndSendBase64Transaction(
   connection: Connection,
   adapter: SignerWalletAdapter,
@@ -101,8 +123,24 @@ export async function signAndSendBase64Transaction(
     signed instanceof VersionedTransaction
       ? signed.serialize()
       : (signed as Transaction).serialize();
-  return connection.sendRawTransaction(signedSerialized, {
-    skipPreflight: false,
-    maxRetries: 3,
-  });
+
+  /** `maxRetries: 0` — avoid the RPC re-broadcasting the same bytes and
+   *  triggering “already been processed” when the first send actually landed. */
+  try {
+    return await connection.sendRawTransaction(signedSerialized, {
+      skipPreflight: false,
+      maxRetries: 0,
+    });
+  } catch (e) {
+    if (isAlreadyProcessedError(e)) {
+      try {
+        return firstSignatureB58(
+          signed as VersionedTransaction | Transaction,
+        );
+      } catch {
+        throw e;
+      }
+    }
+    throw e;
+  }
 }

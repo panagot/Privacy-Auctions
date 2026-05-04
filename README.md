@@ -1,19 +1,27 @@
 # Privacy Auctions
 
-**Private settlement for Solana auctions using [MagicBlock](https://magicblock.app/) Private Payments.**  
-A devnet web app for the **Colosseum Privacy Track** — two auction mechanics, one real integration: **deposit to rollup** and **pay the seller** through MagicBlock’s hosted API with private transfers (`visibility: "private"`, ephemeral balances) so settlement does not look like a normal public SPL transfer on the base layer.
+**Private settlement for Solana auctions, powered by [MagicBlock](https://magicblock.app/) Private Payments.**
+A devnet web app for the **Colosseum Privacy Track**: two auction mechanics share one real integration — fund an **ephemeral rollup** USDC balance, then pay the seller with a **private SPL transfer** the API builds (`visibility: "private"`, ephemeral balances), so the settlement leg does not look like a public &ldquo;who paid whom&rdquo; SPL hop.
+
+- **Live deployment:** [privacy-auctions.vercel.app](https://privacy-auctions.vercel.app/)
+- **GitHub:** [github.com/panagot/Privacy-Auctions](https://github.com/panagot/Privacy-Auctions)
+- **Demo (Loom):** [Loom recording](https://www.loom.com/share/6afc73f5c58e4892bd63156e096f5744)
 
 ---
 
 ## What this is about
 
-**Problem.** Open auctions and plain on-chain token transfers expose a lot: max bids, timing, and payment graphs. For many real use cases (procurement, liquidations, OTC-style sales) you want **price discovery** or **fair rules** *without* broadcasting every strategic detail or who paid whom on a public ledger graph.
+**Problem.** Open auctions and plain SPL transfers leak strategy: who bid, how much, when, and after a clear, the public graph often makes &ldquo;who paid whom&rdquo; obvious. For procurement, liquidations, OTC-style sales, you want price discovery in your product but the **money leg** kept off the public path graph.
 
-**What we built.** A **Next.js** demo that pairs **auction logic in the app** (commit–reveal for sealed bids; timed ticks for a Dutch sale) with **MagicBlock [Private Payments API](https://payments.magicblock.app/reference)** for the *money* leg: you fund a rollup balance on devnet, then the winner or buyer **settles to the seller via a private SPL path** the API builds — the same integration surface you would show in a live hackathon video.
+**What we built.** A polished **Next.js** demo that pairs **auction logic in the app** with **MagicBlock&apos;s [Private Payments API](https://payments.magicblock.app/reference)** for the actual money movement. Auction sessions and commitments live in the browser for fast resets while recording; the **deposit + private transfer** flow is the real integration on Solana **devnet**.
 
-**What this is not (yet).** Bids are not fully enforced on-chain in this repo: commitments and session state live in the **browser** (`localStorage`) so the story stays easy to follow. The **MagicBlock** part is the **real** integration: `POST /v1/spl/deposit` and `POST /v1/spl/transfer` with `visibility: "private"` and `fromBalance` / `toBalance: "ephemeral"` for private settlement on **Solana devnet** (see [API reference](https://payments.magicblock.app/reference)).
+**What ships in this repo:**
 
-**Who should use this repo.** Hackathon judges, integrators who want a **working UI + clear flow** for Private Payments, or teams turning this into **programs (e.g. Anchor) + on-chain commitments** next.
+- A **dedicated `/context` page** explaining the problem, the solution, and how the Ephemeral Rollups + Private Payments API model fits.
+- Two end-to-end auction routes — **/sealed-bid** (commit-reveal) and **/dutch** (descending price) — with phase chips, stats, and live tickers.
+- **Solana Explorer (devnet) links** for every confirmed transaction signature so anyone can verify the on-chain settlement.
+- A **&ldquo;Recent confirmed signatures&rdquo;** receipts panel persisted in the browser, perfect for screen recordings.
+- Robust signing path with **just-in-time blockhash refresh** and **&ldquo;already processed&rdquo;** recovery (`lib/solana/send-transaction.ts`).
 
 ---
 
@@ -21,41 +29,35 @@ A devnet web app for the **Colosseum Privacy Track** — two auction mechanics, 
 
 | Mode | Idea | Settlement |
 |------|------|------------|
-| **Sealed-bid** | Bidders only post **SHA-256 commitments** during the window; after close they **reveal**; highest valid bid wins. | Winner pays the seller with a **private transfer** built by MagicBlock. |
-| **Private Dutch** | **Price steps down** on a timer; first buyer to take the lot pays the **current price** to the seller. | Same **private transfer** path as sealed-bid. |
+| **Sealed-bid** | Bidders publish **SHA-256 commitments** during the window. After close (or seller ends early) everyone reveals; the highest valid bid wins. Forfeit on no-reveal. | Winner pays the seller through MagicBlock with a **private** SPL transfer at the clearing amount. |
+| **Private Dutch** | Price ticks **down** from a configured start to a floor on a timer. First buyer to take the lot pays the live tick price. | Same **private** transfer path as sealed-bid. |
 
-Each route includes a **read-only guided sequence** (no wallet) to explain API steps for recordings.
+Each route has a **read-only guided sequence** (no wallet) walking through the actual API calls and request bodies — handy for recordings and screenshots.
 
 ---
 
 ## Stack
 
-- **Framework:** Next.js (App Router), TypeScript, Tailwind CSS  
-- **Chain:** Solana **devnet** (Phantom or compatible wallet)  
-- **Integration:** MagicBlock `payments.magicblock.app` — deposit, private transfer; optional env override via `NEXT_PUBLIC_MAGICBLOCK_PAYMENTS_URL` (see `.env.example`)  
+- **Framework:** Next.js 16 (App Router), TypeScript, Tailwind CSS v4
+- **UI:** lucide-react icons, framer-motion, custom primitives (Badge, Stat, PhaseChip, ExplorerLink, StatusBanner, Receipts)
+- **Chain:** Solana **devnet** with the wallet adapter (Phantom)
+- **Integration:** `payments.magicblock.app` for deposit and private transfer; override with `NEXT_PUBLIC_MAGICBLOCK_PAYMENTS_URL`
 - **USDC (devnet):** mint `4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU` (see `lib/constants.ts`)
 
 ---
 
 ## Quick start
 
-**Prerequisites:** Node 20+, a Solana wallet on **devnet**, **devnet SOL** and **devnet USDC** (faucet / test sources) before using rollup deposit.
+**Prerequisites:** Node 20+, a Solana wallet on **devnet**, devnet SOL and devnet USDC before doing rollup deposits.
 
 ```bash
 git clone https://github.com/panagot/Privacy-Auctions.git
 cd Privacy-Auctions
-npm install --ignore-scripts
-```
-
-> On Windows, if `npm install` fails on a postinstall script, `--ignore-scripts` is safe for this app.
-
-Optional: copy `.env.example` to `.env.local` and set variables as needed.
-
-```bash
+npm install --legacy-peer-deps
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) and set your wallet to **devnet**.  
+Open [http://localhost:3000](http://localhost:3000) and switch your wallet to **devnet**.
 Scripts use `next dev --webpack` / `next build --webpack` for the `buffer` polyfill (`next.config.ts`).
 
 **Production build:**
@@ -65,30 +67,35 @@ npm run build
 npm start
 ```
 
-**Check auction state logic (no browser wallet):** runs the same `localStorage` stores in Node with a small shim.
+**Headless flow check (no browser wallet):**
 
 ```bash
 npm run verify:flows
 ```
 
-### Manual test: sealed-bid with two bidders (same browser)
+---
 
-Auction state is **per-browser** (`localStorage`); bidders are distinguished by the **connected wallet** address when they tap **Seal bid**.
+## Manual demo flows
 
-1. **Fund devnet USDC** in the wallet you will use for the MagicBlock **Deposit** (the default in-app is **0.1 USDC**; simulation error `insufficient funds` in the program logs means your SPL **USDC** balance is below what the transfer needs—top up that token, not only SOL).
-2. **Wallet A (seller):** create an auction (e.g. 5-minute window). Keep wallet A selected.
-3. **Wallet A:** under **Place sealed bid**, place a first sealed commitment, e.g. `1.00` USDC.
-4. **Switch the wallet to Wallet B,** keep the same auction in the dropdown, set amount to **`2.00` USDC** (or your first amount **+1**), and **Seal bid**. The table should show two rows with **different** shortened addresses under **Bidder** (or the same if you use the same wallet for both, which is only useful for load testing—not a second bidder).
-5. As **the seller (wallet A)**, click **End bidding & open reveal** (available before the timer; other wallets must wait for the scheduled end if they are not the seller). **Reveal** is not automatic—you open that phase on purpose when you are ready to disclose amounts.
-6. Each **bidder** connection reveals each of **their** rows: enter the exact USDC, **Reveal** per row. **Finalize winner**, then the **winning** wallet **Pay seller (private MagicBlock transfer)** for the on-chain step.
+### Sealed-bid (two bidders, same browser)
 
-### Manual test: private Dutch (same browser, two wallets)
+Auction state is **per-browser** (`localStorage`); bidders are distinguished by their connected wallet address.
 
-1. **Fund devnet USDC** in the **buyer** wallet (at least enough for the default **Deposit** plus the price at the tick you intend to take — the button label shows the **current** clearing amount).
-2. **Wallet A (seller):** on `/dutch`, set start/floor/tick, then **Start / replace session (seller = connected wallet)**. The current price steps down on the timer shown on the page.
-3. **Switch to Wallet B (buyer),** as the buyer **Deposit to rollup** (same 0.1 USDC default pattern as sealed-bid), then when the price is right, **Buy now (private pay seller)**. That is the `POST /v1/spl/transfer` private path to the seller.
+1. **Fund devnet USDC** in the wallets you will use for **Deposit**. The default in-app deposit is **0.1 USDC**; an `insufficient funds` log means top up that wallet&apos;s SPL USDC, not only its SOL.
+2. **Wallet A (seller):** create an auction (e.g. a 5-minute window).
+3. **Wallet A:** place a first sealed commitment, e.g. `1.00` USDC.
+4. **Switch to Wallet B,** keep the same auction selected, place a different amount (e.g. `2.00` USDC) and Seal bid. The table now shows two rows.
+5. **End bidding & open reveal** — the seller can do this before the scheduled end, otherwise wait for the timer.
+6. Each bidder wallet connects in turn and runs **Reveal** for *their* rows (unrevealed = forfeit).
+7. **Finalize winner**, then the winning wallet runs **Pay seller (private MagicBlock transfer)**. The signature appears in the status banner and in **Recent confirmed signatures** with a Solana Explorer link.
 
-If something fails, check the status line on the page and, for SPL errors, that **USDC** in the funding wallet (not only SOL) matches what deposit + private amount require.
+### Private Dutch (two wallets)
+
+1. **Fund devnet USDC** in the buyer wallet (at least the deposit amount plus the tick price you intend to take).
+2. **Wallet A (seller):** on `/dutch`, configure start / floor / tick, then **Start / replace session**. The price ticks down on schedule.
+3. **Switch to Wallet B (buyer):** **Deposit** to the rollup, then **Buy now (private pay seller)** at the tick you like. The signature is shown with an Explorer link.
+
+If something fails, the status banner colour-codes the issue and any signature in it is also a one-click Explorer link.
 
 ---
 
@@ -96,20 +103,27 @@ If something fails, check the status line on the page and, for SPL errors, that 
 
 | Path | Role |
 |------|------|
-| `app/` | Pages, layouts, metadata |
-| `lib/magicblock/` | HTTP client for deposit / transfer (timeouts, error handling) |
-| `lib/sealed-auction-store.ts`, `lib/dutch-auction-store.ts` | Demo auction state in the browser |
-| `lib/commitment.ts` | SHA-256 sealed-bid commitments |
-| `lib/tx-error.ts` | User-facing formatting for `sendTransaction` / RPC errors |
-| `lib/solana/` | Sign and send base64 transactions from the wallet (blockhash refresh) |
-| `components/` | App shell, wallet providers, guided walkthroughs |
+| `app/` | Pages, layouts, metadata (`/`, `/sealed-bid`, `/dutch`, `/context`) |
+| `app/page.tsx` | Hero, How-it-works, mode cards, trust signals |
+| `app/context/page.tsx` | Problem, solution, MagicBlock value proposition |
+| `lib/magicblock/` | Payments API client (deposit / transfer, timeouts, error handling) |
+| `lib/sealed-auction-store.ts`, `lib/dutch-auction-store.ts` | In-browser auction state |
+| `lib/commitment.ts` | SHA-256 commitments for sealed bids |
+| `lib/solana/send-transaction.ts` | Sign + send with blockhash refresh and &ldquo;already processed&rdquo; recovery |
+| `lib/tx-error.ts` | User-facing formatting for `sendTransaction` / RPC errors with hints |
+| `lib/explorer.ts`, `lib/cn.ts` | Helpers (Solana Explorer URLs, `cn()` for Tailwind) |
+| `components/AppShell.tsx` | Sticky header, brand mark, footer, devnet badge |
+| `components/ui/` | Reusable UI primitives (Badge, Stat, PhaseChip, ExplorerLink, Section, StatusBanner, Receipts) |
+| `components/SealedBidSimulation.tsx`, `components/DutchSimulation.tsx` | Read-only guided walkthroughs |
 | `scripts/verify-flows.ts` | Invoked by `npm run verify:flows` |
 
 ---
 
 ## Resources
 
-- [MagicBlock Payments API reference](https://payments.magicblock.app/reference)  
-- [Privacy Auctions (this repo on GitHub)](https://github.com/panagot/Privacy-Auctions)
+- [MagicBlock Payments API reference](https://payments.magicblock.app/reference)
+- [MagicBlock](https://magicblock.app/)
+- [Solana Explorer (devnet)](https://explorer.solana.com/?cluster=devnet)
+- [Privacy Auctions on GitHub](https://github.com/panagot/Privacy-Auctions)
 
 ---

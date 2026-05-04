@@ -55,5 +55,8 @@ export async function formatSendTransactionError(
   if (/Blockhash not found|block hash not found/i.test(base)) {
     base = `${base}\n\n— Hint: the app refreshes the blockhash before signing. If you still see this, retry; devnet can be slow or the API-built tx can sit in the wallet too long.`;
   }
+  if (/already been processed/i.test(base)) {
+    base = `${base}\n\n— Hint: this often means the same signed transaction was submitted twice (e.g. a retry or a double click). The first can succeed; the app recovers the signature so confirm can still work. If your UI still looks wrong, refresh; the payment may have landed.`;
+  }
   return base;
 }
